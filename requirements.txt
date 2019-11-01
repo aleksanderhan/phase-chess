@@ -1,0 +1,3 @@
+python-chess
+pyqt5
+numpy
