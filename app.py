@@ -26,7 +26,7 @@ class BoardView(QSvgWidget):
     def mouseMoveEvent(self, event):
         board_pos = self.calculate_board_position(event)
 
-    # return the board position as an algebraic notation string, or None
+    # TODO: return the board position as an algebraic notation string, or None
     def calculate_board_position(self, event):
         x = self.size().width() - event.pos().x()
         y = self.size().height() - event.pos().y()
