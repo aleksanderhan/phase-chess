@@ -8,15 +8,23 @@ from PyQt5.QtWidgets import QApplication, QLineEdit, QGridLayout, QWidget
 from PyQt5.QtCore import QByteArray, Qt
 from PyQt5.QtSvg import QSvgWidget
 
+from helper.functions import create_QByteArray
+from helper.classes import EvenLayout
 
-class BoardView(QSvgWidget):
+
+class BoardView(QWidget):
 
     def __init__(self, board):
         super().__init__()
+        self.svgWidget = QSvgWidget()
+        layout = EvenLayout(self)
+        layout.addWidget(self.svgWidget, 0, 0)
+
         self.board = board
         self.refresh()
 
     def mousePressEvent(self, event):
+        print(self.svgWidget.size())
         board_pos = self.calculate_board_position(event)
 
     def mouseReleaseEvent(self, event):
@@ -28,23 +36,16 @@ class BoardView(QSvgWidget):
 
     # TODO: return the board position as an algebraic notation string, or None
     def calculate_board_position(self, event):
-        x = self.size().width() - event.pos().x()
-        y = self.size().height() - event.pos().y()
-        print(x, y)
-
         screen_width = self.size().width()
         screen_height = self.size().height()
+        x = screen_width - event.pos().x()
+        y = screen_height - event.pos().y()
+        print(x, y)
 
     def refresh(self):
         svg_board = boardToSvg(self.board)
-        data = self.create_QByteArray(svg_board)
-        self.load(data)
-
-    @staticmethod
-    def create_QByteArray(svg):
-        data = QByteArray()
-        data.append(str(svg))
-        return data
+        data = create_QByteArray(svg_board)
+        self.svgWidget.load(data)
 
 
 class Main(QWidget):
