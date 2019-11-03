@@ -37,6 +37,8 @@ class BoardView(QWidget):
             board_pos = self.calculate_board_position(event)
             if board_pos is not None:
                 move = self.press_pos + board_pos
+                if self.press_pos == board_pos:
+                    move = '0000' # uci null move
                 self.parent().do_move(move)
 
     def mouseMoveEvent(self, event):
@@ -56,7 +58,6 @@ class BoardView(QWidget):
             return None
         else:
             return 'abcdefgh'[x_pos - 1] + str(y_pos)
-
 
 
 class Main(QWidget):
@@ -86,13 +87,15 @@ class Main(QWidget):
         elif cmd == 'sb':
             with open('board.svg', 'w') as file:
                 file.write(str(boardToSvg(self.board)))
-            print('board written to svg file.')
+            print('Board written to svg file.')
+        elif cmd == 'cm':
+            print('Is checkmate: ', self.board.is_checkmate())
         else:
             self.do_move(cmd)
 
-    def do_move(self, cmd):
+    def do_move(self, uci):
         try: 
-            move = Move.from_uci(cmd)
+            move = Move.from_uci(uci)
             if move in self.board.legal_moves:
                 self.board.push(move)
                 self.board_view.refresh()
@@ -108,4 +111,3 @@ if __name__ == '__main__':
     window.setGeometry(150, 150, 800, 800)
     window.show()
     sys.exit(app.exec_())
-
