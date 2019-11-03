@@ -1,11 +1,12 @@
 import sys
+import random
 import numpy as np
 
 from chess import Board, Move
 from chess.svg import board as boardToSvg
 
-from PyQt5.QtWidgets import QApplication, QLineEdit, QGridLayout, QWidget
-from PyQt5.QtCore import QByteArray, Qt, QSize
+from PyQt5.QtWidgets import QApplication, QWidget, QLineEdit, QGridLayout
+from PyQt5.QtCore import QSize
 from PyQt5.QtSvg import QSvgWidget
 
 from helper.functions import createQByteArray
@@ -89,8 +90,10 @@ class Main(QWidget):
             with open('board.svg', 'w') as file:
                 file.write(str(boardToSvg(self.board)))
             print('Board written to svg file.')
-        elif cmd == 'cm':
-            print('Is checkmate: ', self.board.is_checkmate())
+        elif cmd == 'rr':
+            move = str(random.choice(list(self.board.legal_moves)))
+            print('Playing random move:', move)
+            self.do_move(move)
         else:
             self.do_move(cmd)
 
@@ -100,6 +103,8 @@ class Main(QWidget):
             if move in self.board.legal_moves:
                 self.board.push(move)
                 self.board_view.refresh()
+                if self.board.is_checkmate():
+                    print('Checkmate player {}!'.format('White' if self.board.turn else 'Black'))
             else:
                 print('Illegal move!')
         except ValueError as ve:
