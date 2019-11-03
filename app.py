@@ -34,14 +34,15 @@ class BoardView(QWidget):
 
     def mouseReleaseEvent(self, event):
         if self.press_pos is not None:
-            board_pos = self.calculate_board_position(event)
-            if board_pos is not None:
-                move = self.press_pos + board_pos
-                if self.press_pos == board_pos:
+            release_pos = self.calculate_board_position(event)
+            if release_pos is not None:
+                move = self.press_pos + release_pos
+                if self.press_pos == release_pos:
                     move = '0000' # uci null move
                 self.parent().do_move(move)
 
     def mouseMoveEvent(self, event):
+        # TODO: Implement drag icon
         pass
 
     # Returns the board position as an algebraic notation string, or None
