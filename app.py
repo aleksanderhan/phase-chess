@@ -44,7 +44,7 @@ class BoardView(QWidget):
                 self.parent().do_move(move)
 
     def mouseMoveEvent(self, event):
-        # TODO: Implement drag icon
+        # TODO: Implement drag piece-icon
         pass
 
     # Returns the board position as an algebraic notation string, or None
