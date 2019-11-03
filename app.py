@@ -1,9 +1,10 @@
-import sys
+import sys, os
 import random
 import numpy as np
 
 from chess import Board, Move
 from chess.svg import board as boardToSvg
+from stockfish import Stockfish
 
 from PyQt5.QtWidgets import QApplication, QWidget, QLineEdit, QGridLayout
 from PyQt5.QtCore import QSize
@@ -69,6 +70,8 @@ class Main(QWidget):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.board = Board()
+        self.sfish = Stockfish(os.getcwd() + '/stockfish-10-linux/Linux/stockfish_10_x64')
+        self.sfish.set_fen_position(self.board.fen())
 
         self.board_view = BoardView(self.board, parent=self)
         self.command = QLineEdit()
@@ -85,30 +88,45 @@ class Main(QWidget):
         if cmd.lower() in self.EXIT:
             exit(0)
         elif cmd == 'lm':
-            print(self.board.legal_moves)
+            print([str(move) for move in self.board.legal_moves])
         elif cmd == 'sb':
             with open('board.svg', 'w') as file:
                 file.write(str(boardToSvg(self.board)))
             print('Board written to svg file.')
         elif cmd == 'rr':
-            move = str(random.choice(list(self.board.legal_moves)))
-            print('Playing random move:', move)
-            self.do_move(move)
+            try:
+                move = str(random.choice(list(self.board.legal_moves)))
+                print('Playing random move:', move)
+                self.do_move(move)
+            except IndexError as ie:
+                self.status()
+        elif cmd == 'sf':
+            move = self.sfish.get_best_move()
+            if move:
+                print('Playing stockfish move:', move)
+                self.do_move(move)
+            else:
+                self.status()
         else:
-            self.do_move(cmd)
+            try:
+                self.do_move(cmd)
+            except ValueError as ve:
+                print('Command not recognized.', ve)
 
     def do_move(self, uci):
-        try: 
-            move = Move.from_uci(uci)
-            if move in self.board.legal_moves:
-                self.board.push(move)
-                self.board_view.refresh()
-                if self.board.is_checkmate():
-                    print('Checkmate player {}!'.format('White' if self.board.turn else 'Black'))
-            else:
-                print('Illegal move!')
-        except ValueError as ve:
-            print('Command not recognized.', ve)
+        move = Move.from_uci(uci)
+        if move in self.board.legal_moves:
+            self.board.push(move)
+            self.board_view.refresh()
+            self.sfish.set_fen_position(self.board.fen())
+            self.status()
+        else:
+            print('Illegal move!')
+
+    def status(self):
+        if self.board.is_checkmate():
+            print('Checkmate player {}!'.format('White' if self.board.turn else 'Black'))
+        
 
 
 if __name__ == '__main__':

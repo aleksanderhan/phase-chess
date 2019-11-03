@@ -103,5 +103,11 @@ venv.bak/
 # mypy
 .mypy_cache/
 
-# Board files
+# Board svg files
 .svg
+
+# Stockfish binaries
+stockfish-10-linux/
+
+# Various
+*.zip

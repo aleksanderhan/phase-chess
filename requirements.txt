@@ -1,3 +1,4 @@
-python-chess
 pyqt5
+python-chess
+stockfish
 numpy
