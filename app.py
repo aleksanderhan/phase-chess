@@ -99,14 +99,14 @@ class Main(QWidget):
                 print('Playing random move:', move)
                 self.do_move(move)
             except IndexError as ie:
-                self.status()
+                self.check_status()
         elif cmd == 'sf':
             move = self.sfish.get_best_move()
             if move:
                 print('Playing stockfish move:', move)
                 self.do_move(move)
             else:
-                self.status()
+                self.check_status()
         else:
             try:
                 self.do_move(cmd)
@@ -119,14 +119,15 @@ class Main(QWidget):
             self.board.push(move)
             self.board_view.refresh()
             self.sfish.set_fen_position(self.board.fen())
-            self.status()
+            self.check_status()
         else:
             print('Illegal move!')
 
-    def status(self):
+    def check_status(self):
         if self.board.is_checkmate():
             print('Checkmate player {}!'.format('White' if self.board.turn else 'Black'))
-        
+        elif self.board.is_game_over():
+            print('Game over!', self.board.result())
 
 
 if __name__ == '__main__':

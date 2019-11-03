@@ -1,3 +1,5 @@
+sudo apt install python3-pip wget unzip
+
 pip3 install -r requirements.txt
 
 wget https://stockfishchess.org/files/stockfish-10-linux.zip
