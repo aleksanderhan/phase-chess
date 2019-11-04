@@ -94,24 +94,33 @@ class Main(QWidget):
                 file.write(str(boardToSvg(self.board)))
             print('Board written to svg file.')
         elif cmd == 'rr':
-            try:
-                move = str(random.choice(list(self.board.legal_moves)))
-                print('Playing random move:', move)
-                self.do_move(move)
-            except IndexError as ie:
-                self.check_status()
+            self.play_random_move()
         elif cmd == 'sf':
-            move = self.sfish.get_best_move()
-            if move:
-                print('Playing stockfish move:', move)
-                self.do_move(move)
-            else:
-                self.check_status()
+            self.play_stockfish_move()
+        elif cmd == 'ff':
+            self.play_random_move()
+            self.play_stockfish_move()
         else:
             try:
                 self.do_move(cmd)
             except ValueError as ve:
                 print('Command not recognized.', ve)
+
+    def play_stockfish_move(self):
+        move = self.sfish.get_best_move()
+        if move:
+            print('Playing stockfish move:', move)
+            self.do_move(move)
+        else:
+            self.check_status()
+
+    def play_random_move(self):
+        try:
+            move = str(random.choice(list(self.board.legal_moves)))
+            print('Playing random move:', move)
+            self.do_move(move)
+        except IndexError as ie:
+            self.check_status()
 
     def do_move(self, uci):
         move = Move.from_uci(uci)
