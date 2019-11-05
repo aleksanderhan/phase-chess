@@ -9,7 +9,7 @@ from game import GameEngine
 
 class Main(QWidget):
 
-    EXIT = set(['exit', 'quit', 'qq'])
+    EXIT = {'exit', 'quit', 'qq'}
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -33,7 +33,7 @@ class Main(QWidget):
             sys.exit(0)
         elif cmd == 'q':
             print('Halt automatic play.')
-            self.game.toggle_halt_flag()
+            if not self.game.halt_flag: self.game.toggle_halt_flag()
         elif cmd == 'lm': # legal moves
             print([str(move) for move in self.game.board.legal_moves])
         elif cmd == 'sb': # save board
