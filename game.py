@@ -9,6 +9,8 @@ from stockfish import Stockfish
 from threading import Thread
 from time import sleep
 
+from helper.functions import sleep_one_second, toggle
+
 
 class GameEngine(Thread):
 
@@ -16,12 +18,13 @@ class GameEngine(Thread):
         super().__init__()
         self.stop_flag = False
         self.halt_flag = False
+        self.auto_play = False
         self.commands = queue.Queue()
 
         self.board = Board()
         self.board_view = None
-        self.sf = Stockfish(path='{}/stockfish.bin'.format(os.getcwd()), depth=9)
-        self.sf.set_fen_position(self.board.fen())
+        self.stockfish = Stockfish(path='{}/stockfish.bin'.format(os.getcwd()), depth=9)
+        self.stockfish.set_fen_position(self.board.fen())
 
     def run(self):
         while not self.stop_flag:
@@ -29,8 +32,10 @@ class GameEngine(Thread):
             if cmd is None: break
             self.route_command(cmd)
             self.commands.task_done()
+            if self.halt_flag: self.toggle_halt_flag()
 
     def stop(self):
+        if not self.halt_flag: self.toggle_halt_flag()
         self.stop_flag = True
         self.commands.put(None)
 
@@ -59,17 +64,25 @@ class GameEngine(Thread):
                 print('Command not recognized.', ve)
 
     def fast_forward(self):
-        toggle = True
-        while not self.board.is_game_over() and not self.halt_flag:
-            (self.play_best_move if toggle else self.play_random_move)()
-            toggle = not toggle
-            sleep(1)
+        print('Playing fast forward mode.')
+        self.sequential_automatic_play(
+            next(toggle(self.play_best_move, self.play_random_move)), 
+            sleep_one_second
+        )
 
     def play_stockfish(self):
-        while not self.board.is_game_over() and not self.halt_flag:
-            self.play_best_move()
-            sleep(1)
-        self.toggle_halt_flag()
+        print('Playing stockfish vs stockfish.')
+        self.sequential_automatic_play(self.play_best_move, sleep_one_second)
+
+    def play_random(self):
+        print('Playing random moves.')
+
+    def sequential_automatic_play(self, *functions):
+        if not self.auto_play:
+            self.auto_play = True
+            while not self.board.is_game_over() and not self.halt_flag and self.auto_play:
+                for f in functions: f()
+            self.auto_play = False
 
     def play_best_move(self):
         move = self.get_best_move()
@@ -92,8 +105,8 @@ class GameEngine(Thread):
         pass
 
     def get_best_move(self):
-        self.sf.set_fen_position(self.board.fen())
-        return self.sf.get_best_move()
+        self.stockfish.set_fen_position(self.board.fen())
+        return self.stockfish.get_best_move()
 
     def reset_board(self):
         print('Resetting board.')
@@ -110,7 +123,7 @@ class GameEngine(Thread):
             print('Illegal move!')
 
     def reverse_move(self):
-        self.board.pop()
+        print('Popping {} move off stack'.format(self.board.pop()))
         self.refresh_view()
 
     def refresh_view(self):

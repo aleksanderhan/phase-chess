@@ -29,7 +29,6 @@ class Main(QWidget):
         cmd = self.command.text()
         self.command.clear()
         if cmd.lower() in self.EXIT: # exit
-            self.game.toggle_halt_flag()
             self.game.stop()
             sys.exit(0)
         elif cmd == 'q':
@@ -48,7 +47,6 @@ class Main(QWidget):
 
     def closeEvent(self, event):
         super().closeEvent(event)
-        self.game.toggle_halt_flag()
         self.game.stop()
 
 
