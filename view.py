@@ -2,7 +2,6 @@ from PyQt5.QtWidgets import QWidget, QGridLayout
 from PyQt5.QtCore import QRect, QSize
 from PyQt5.QtSvg import QSvgWidget
 
-
 from helper.functions import createQByteArray
 
 

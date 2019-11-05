@@ -29,8 +29,11 @@ class Main(QWidget):
         cmd = self.command.text()
         self.command.clear()
         if cmd.lower() in self.EXIT: # exit
+            self.game.toggle_halt_flag()
             self.game.stop()
             sys.exit(0)
+        elif cmd == 'q':
+            self.game.toggle_halt_flag()
         elif cmd == 'lm': # legal moves
             print([str(move) for move in self.game.board.legal_moves])
         elif cmd == 'sb': # save board
@@ -42,6 +45,11 @@ class Main(QWidget):
 
     def execute_game_command(self, cmd):
         self.game.execute(cmd)
+
+    def closeEvent(self, event):
+        super().closeEvent(event)
+        self.game.toggle_halt_flag()
+        self.game.stop()
 
 
 if __name__ == '__main__':

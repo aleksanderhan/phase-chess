@@ -15,11 +15,12 @@ class GameEngine(Thread):
     def __init__(self):
         super().__init__()
         self.stop_flag = False
+        self.halt_flag = False
         self.commands = queue.Queue()
 
         self.board = Board()
         self.board_view = None
-        self.sf = Stockfish(os.getcwd()+'/stockfish-10-linux/Linux/stockfish_10_x64', depth=9)
+        self.sf = Stockfish(path='{}/stockfish.bin'.format(os.getcwd()), depth=9)
         self.sf.set_fen_position(self.board.fen())
 
     def run(self):
@@ -44,22 +45,31 @@ class GameEngine(Thread):
         elif cmd == 'rr':
             self.play_random_move()
         elif cmd == 'ff':
-            self.play_random_move() # self.play_worst_move()
-            self.play_best_move()
+            self.fast_forward()
         elif cmd == 'psf':
             self.play_stockfish()
-        elif cmd =='rev':
+        elif cmd == 'rev':
             self.reverse_move()
+        elif cmd == 'cc':
+            self.check_status()
         else:
             try:
                 self.do_move(cmd)
             except ValueError as ve:
                 print('Command not recognized.', ve)
 
+    def fast_forward(self):
+        toggle = True
+        while not self.board.is_game_over() and not self.halt_flag:
+            (self.play_best_move if toggle else self.play_random_move)()
+            toggle = not toggle
+            sleep(1)
+
     def play_stockfish(self):
-        while not self.board.is_game_over():
+        while not self.board.is_game_over() and not self.halt_flag:
             self.play_best_move()
             sleep(1)
+        self.toggle_halt_flag()
 
     def play_best_move(self):
         move = self.get_best_move()
@@ -86,6 +96,7 @@ class GameEngine(Thread):
         return self.sf.get_best_move()
 
     def reset_board(self):
+        print('Resetting board.')
         self.board.reset()
         self.refresh_view()
 
@@ -119,5 +130,5 @@ class GameEngine(Thread):
     def get_svg_board(self):
         return boardToSvg(self.board)
 
-
-        
+    def toggle_halt_flag(self):
+        self.halt_flag = not self.halt_flag
