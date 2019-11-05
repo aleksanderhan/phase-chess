@@ -14,3 +14,4 @@ def toggle(a, b, toggle=True):
 	while True:
 		(yield a) if toggle else (yield b)
 		toggle = not toggle
+

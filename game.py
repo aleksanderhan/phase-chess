@@ -9,10 +9,8 @@ from stockfish import Stockfish
 from threading import Thread
 from time import sleep
 
-from helper.functions import toggle
 
-
-class GameEngine(Thread, Game):
+class GameEngine(Thread):
 
     def __init__(self):
         super().__init__()
@@ -31,11 +29,11 @@ class GameEngine(Thread, Game):
             cmd = self.commands.get(block=True)
             if cmd is None: break
             self.switch(cmd)()
-            self.commands.task_done() # 
-            if self.halt_flag: self.toggle_halt_flag()
+            self.commands.task_done()
+            self.halt_flag = False
 
     def stop(self):
-        if not self.halt_flag: self.toggle_halt_flag()
+        self.halt_flag = True
         self.stop_flag = True
         self.commands.put(None)
 
@@ -43,22 +41,21 @@ class GameEngine(Thread, Game):
         self.commands.put(cmd)
 
     def switch(self, cmd):
-        if not self.auto_play:
-            if   cmd == 'sf':  return self.play_best_move
-            elif cmd == 're':  return self.reset_board
-            elif cmd == 'rr':  return self.play_random_move
-            elif cmd == 'ff':  return self.fast_forward
-            elif cmd == 'psf': return self.play_stockfish
-            elif cmd == 'pr':  return self.play_random
-            elif cmd == 'rev': return self.reverse_move
-            else:              return (lambda cmd=cmd: self.do_move(cmd))
-        else:
-            print('Auto-play in progress. Send q to halt.')
+        if   cmd == 'sf':  return self.play_best_move
+        elif cmd == 're':  return self.reset_board
+        elif cmd == 'rr':  return self.play_random_move
+        elif cmd == 'ff':  return self.fast_forward
+        elif cmd == 'psf': return self.play_stockfish
+        elif cmd == 'pr':  return self.play_random
+        elif cmd == 'rev': return self.reverse_move
+        else:              return (lambda cmd=cmd: self.do_move(cmd))
 
     def fast_forward(self):
         print('Playing fast forward mode.')
         self.sequential_automatic_play(
-            next(toggle(self.play_best_move, self.play_random_move)), 
+            self.play_best_move,
+            (lambda t=0.5: sleep(t)),
+            self.play_random_move,
             (lambda t=0.5: sleep(t))
         )
 
@@ -74,6 +71,7 @@ class GameEngine(Thread, Game):
         self.auto_play = True
         while not self.board.is_game_over() and not self.halt_flag and self.auto_play:
             for f in functions: f()
+        self.halt_flag = False
         self.auto_play = False
 
     def play_best_move(self):
@@ -138,14 +136,5 @@ class GameEngine(Thread, Game):
     def get_svg_board(self):
         return boardToSvg(self.board)
 
-    def toggle_halt_flag(self):
-        self.halt_flag = not self.halt_flag
 
-
-
-class Game(object):
-    """docstring for SimplePlay"""
-    def __init__(self, arg):
-        super().__init__()
-        self.arg = arg
         

@@ -33,7 +33,7 @@ class Main(QWidget):
             sys.exit(0)
         elif cmd == 'q':
             print('Halt automatic play.')
-            if not self.game.halt_flag: self.game.toggle_halt_flag()
+            self.game.halt_flag = True
         elif cmd == 'lm': # legal moves
             print([str(move) for move in self.game.board.legal_moves])
         elif cmd == 'sb': # save board
