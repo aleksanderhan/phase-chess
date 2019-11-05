@@ -3,8 +3,6 @@ from time import sleep
 from PyQt5.QtCore import QByteArray
 
 
-sleep_one_second = (lambda t=1: sleep(t))
-
 def createQByteArray(svg):
     data = QByteArray()
     data.append(str(svg))

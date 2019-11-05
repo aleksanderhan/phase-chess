@@ -32,6 +32,7 @@ class Main(QWidget):
             self.game.stop()
             sys.exit(0)
         elif cmd == 'q':
+            print('Halt automatic play.')
             self.game.toggle_halt_flag()
         elif cmd == 'lm': # legal moves
             print([str(move) for move in self.game.board.legal_moves])
@@ -39,9 +40,14 @@ class Main(QWidget):
             with open('board.svg', 'w') as file:
                 file.write(str(self.game.get_svg_board()))
             print('Board written to svg file.')
+        elif cmd == 'cc':
+            print(self.game.board.result())
         else:
-            self.execute_game_command(cmd)
-
+            if not self.game.auto_play:
+                self.execute_game_command(cmd)
+            else:
+                print('Auto-play in progress. Send q to halt.')
+    
     def execute_game_command(self, cmd):
         self.game.execute(cmd)
 
