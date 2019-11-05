@@ -1,4 +1,4 @@
-sudo apt install python3-pip wget unzip
+sudo apt install python3 python3-pip wget unzip
 
 pip3 install -r requirements.txt
 
