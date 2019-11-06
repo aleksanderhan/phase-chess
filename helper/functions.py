@@ -9,9 +9,8 @@ def createQByteArray(svg):
     return data
 
 # Toggle generator. Returns a and b alternatingly on next()
-# toggle=True/False: returns a/b on first call
-def toggle(a, b, toggle=True):
+def toggle(a, b, yield_a=True):
 	while True:
-		(yield a) if toggle else (yield b)
-		toggle = not toggle
+		(yield a) if yield_a else (yield b)
+		yield_a = not yield_a
 

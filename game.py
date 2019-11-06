@@ -9,6 +9,8 @@ from stockfish import Stockfish
 from threading import Thread
 from time import sleep
 
+from helper.functions import toggle
+
 
 class GameEngine(Thread):
 
@@ -17,7 +19,7 @@ class GameEngine(Thread):
         self.stop_flag = False
         self.halt_flag = False
         self.auto_play = False
-        self.commands = queue.Queue()
+        self.commands = queue.Queue(maxsize=1)
 
         self.board = Board()
         self.board_view = None
@@ -38,7 +40,10 @@ class GameEngine(Thread):
         self.commands.put(None)
 
     def execute(self, cmd):
-        self.commands.put(cmd)
+        try:
+            self.commands.put(cmd, block=False)
+        except Exception as e:
+            print(e)
 
     def switch(self, cmd):
         if   cmd == 'sf':  return self.play_best_move
@@ -48,6 +53,7 @@ class GameEngine(Thread):
         elif cmd == 'psf': return self.play_stockfish
         elif cmd == 'pr':  return self.play_random
         elif cmd == 'rev': return self.reverse_move
+        elif cmd == 'pm':  return self.get_piece_at_position
         else:              return (lambda cmd=cmd: self.do_move(cmd))
 
     def fast_forward(self):
@@ -56,8 +62,7 @@ class GameEngine(Thread):
             self.play_best_move,
             (lambda t=0.5: sleep(t)),
             self.play_random_move,
-            (lambda t=0.5: sleep(t))
-        )
+            (lambda t=0.5: sleep(t)))
 
     def play_stockfish(self):
         print('Playing stockfish vs stockfish.')
@@ -69,7 +74,7 @@ class GameEngine(Thread):
 
     def sequential_automatic_play(self, *functions):
         self.auto_play = True
-        while not self.board.is_game_over() and not self.halt_flag and self.auto_play:
+        while not self.board.is_game_over() and not self.halt_flag:
             for f in functions: f()
         self.halt_flag = False
         self.auto_play = False
@@ -135,6 +140,11 @@ class GameEngine(Thread):
 
     def get_svg_board(self):
         return boardToSvg(self.board)
+
+    def get_piece_at_position(self):
+        # needed for pawn swap move check
+        # piece_at
+        print(self.board.piece_map())
 
 
         
