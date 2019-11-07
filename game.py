@@ -2,12 +2,12 @@ import os
 import random
 import queue
 
+from threading import Thread
+from time import sleep
+
 from chess import Board, Move
 from chess.svg import board as boardToSvg
 from stockfish import Stockfish
-
-from threading import Thread
-from time import sleep
 
 from helper.functions import toggle
 
@@ -19,64 +19,74 @@ class GameEngine(Thread):
         self.stop_flag = False
         self.halt_flag = False
         self.auto_play = False
-        self.commands = queue.Queue(maxsize=1)
+        self.command_queue = queue.Queue(maxsize=1)
 
         self.board = Board()
         self.board_view = None
         self.stockfish = Stockfish(path='{}/stockfish.bin'.format(os.getcwd()), depth=9)
         self.stockfish.set_fen_position(self.board.fen())
 
+        # Command map
+        self.commands = dict(
+            sf  = self.play_best_move,
+            rr  = self.play_random_move,
+            ff  = self.auto_fast_forward,
+            psf = self.auto_play_stockfish,
+            pr  = self.auto_play_random,
+            re  = self.reset_board,
+            rev = self.reverse_move,
+            pm  = (lambda pos=None: self.get_piece_at_position(pos)),
+        )
+
     def run(self):
         while not self.stop_flag:
-            cmd = self.commands.get(block=True)
+            cmd = self.command_queue.get(block=True)
             if cmd is None: break
-            self.switch(cmd)()
-            self.commands.task_done()
+
+            try:
+                self.commands[cmd]() # Command call
+            except KeyError:
+                try:
+                    self.do_move(cmd)
+                except ValueError:
+                    print('Command not recognized.' )
+            self.command_queue.task_done()
             self.halt_flag = False
 
     def stop(self):
         self.halt_flag = True
         self.stop_flag = True
-        self.commands.put(None)
+        self.command_queue.put(None)
 
     def execute(self, cmd):
         try:
-            self.commands.put(cmd, block=False)
+            self.command_queue.put(cmd, block=False)
         except Exception as e:
             print(e)
 
-    def switch(self, cmd):
-        if   cmd == 'sf':  return self.play_best_move
-        elif cmd == 're':  return self.reset_board
-        elif cmd == 'rr':  return self.play_random_move
-        elif cmd == 'ff':  return self.fast_forward
-        elif cmd == 'psf': return self.play_stockfish
-        elif cmd == 'pr':  return self.play_random
-        elif cmd == 'rev': return self.reverse_move
-        elif cmd == 'pm':  return self.get_piece_at_position
-        else:              return (lambda cmd=cmd: self.do_move(cmd))
-
-    def fast_forward(self):
+    def auto_fast_forward(self):
         print('Playing fast forward mode.')
-        self.sequential_automatic_play(
-            self.play_best_move,
-            (lambda t=0.5: sleep(t)),
-            self.play_random_move,
-            (lambda t=0.5: sleep(t)))
-
-    def play_stockfish(self):
-        print('Playing stockfish vs stockfish.')
-        self.sequential_automatic_play(self.play_best_move, (lambda t=1: sleep(t)))
-
-    def play_random(self):
-        print('Playing random moves.')
-        self.sequential_automatic_play(self.play_random_move, (lambda t=1: sleep(t)))
-
-    def sequential_automatic_play(self, *functions):
         self.auto_play = True
-        while not self.board.is_game_over() and not self.halt_flag:
-            for f in functions: f()
-        self.halt_flag = False
+        move = toggle(self.play_best_move, self.play_random_move)
+        while not (self.board.is_game_over() or self.halt_flag):
+            next(move)()
+            sleep(0.5)
+        self.auto_play = False
+
+    def auto_play_stockfish(self):
+        print('Playing stockfish vs stockfish.')
+        self.auto_play = True
+        while (self.board.is_game_over() or self.halt_flag):
+            self.play_best_move
+            sleep(1)
+        self.auto_play = False
+
+    def auto_play_random(self):
+        print('Playing random moves.')
+        self.auto_play = True
+        while not (self.board.is_game_over() or self.halt_flag):
+            self.play_random_move
+            sleep(1)
         self.auto_play = False
 
     def play_best_move(self):
@@ -109,16 +119,13 @@ class GameEngine(Thread):
         self.refresh_view()
 
     def do_move(self, uci):
-        try:
-            move = Move.from_uci(uci)
-            if move in self.board.legal_moves:
-                self.board.push(move)
-                self.refresh_view()
-                self.check_status()
-            else:
-                print('Illegal move!')
-        except ValueError as ve:
-            print('Command not recognized.', ve)
+        move = Move.from_uci(uci)
+        if move in self.board.legal_moves:
+            self.board.push(move)
+            self.refresh_view()
+            self.check_status()
+        else:
+            print('Illegal move!')
 
     def reverse_move(self):
         print('Popping {} move off stack'.format(self.board.pop()))
@@ -141,10 +148,6 @@ class GameEngine(Thread):
     def get_svg_board(self):
         return boardToSvg(self.board)
 
-    def get_piece_at_position(self):
-        # needed for pawn swap move check
-        # piece_at
-        print(self.board.piece_map())
 
 
         

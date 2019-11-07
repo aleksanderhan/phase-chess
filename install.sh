@@ -9,5 +9,3 @@ unzip -p stockfish-10-linux.zip stockfish-10-linux/Linux/stockfish_10_x64 > stoc
 
 rm stockfish-10-linux.zip
 chmod +x stockfish.bin
-
-alert Done

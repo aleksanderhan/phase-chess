@@ -24,10 +24,19 @@ class BoardView(QWidget):
         self.press_pos = self.calculate_board_position(event)
 
     def mouseReleaseEvent(self, event):
-        if self.press_pos is not None:
+        if self.press_pos:
             release_pos = self.calculate_board_position(event)
-            if release_pos is not None:
+            if release_pos:
+                piece = self.get_piece_at_pos(self.press_pos)
                 move = self.press_pos + release_pos
+                
+                if self.parent().game.board.turn:
+                    if piece == 'P' and release_pos[1] == '8' and self.press_pos[1] == '7':
+                        move += 'q' # TODO: player input 
+                else: 
+                    if piece == 'p' and release_pos[1] == '1' and self.press_pos[1] == '2':
+                        move += 'q'
+
                 if self.press_pos == release_pos:
                     move = '0000' # uci null move
                 self.parent().execute_game_command(move)
@@ -36,7 +45,8 @@ class BoardView(QWidget):
         # TODO: Implement drag piece-icon
         pass
 
-    # Returns the board position as an algebraic notation string, or None
+    # Returns a tuple with the board position as uci and the piece at that position,
+    # or None. 
     def calculate_board_position(self, event):
         margin = self.svgWidget.size()*0.05 + QSize(2, 2)
         square = (self.svgWidget.size() - 2*margin)/8
@@ -51,6 +61,11 @@ class BoardView(QWidget):
         else:
             return 'abcdefgh'[x_pos - 1] + str(y_pos)
 
+    def get_piece_at_pos(self, uci):
+        x = 'abcdefgh'.index(uci[0])
+        y = int(uci[1]) - 1
+        piece = self.parent().game.board.piece_at(x + y*8)
+        return str(piece)
 
 class EvenLayout(QGridLayout):
 
