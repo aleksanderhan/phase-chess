@@ -5,6 +5,8 @@ import queue
 from threading import Thread
 from time import sleep
 
+import numpy as np
+
 from chess import Board, Move
 from chess.svg import board as boardToSvg
 from stockfish import Stockfish
@@ -23,7 +25,7 @@ class GameEngine(Thread):
 
         self.board = Board()
         self.board_view = None
-        self.stockfish = Stockfish(path='{}/stockfish.bin'.format(os.getcwd()), depth=9)
+        self.stockfish = Stockfish(path='{}/stockfish_10_x64_bmi2'.format(os.getcwd()), depth=9)
         self.stockfish.set_fen_position(self.board.fen())
 
         # Command map
@@ -35,8 +37,17 @@ class GameEngine(Thread):
             pr  = self.auto_play_random,
             re  = self.reset_board,
             rev = self.reverse_move,
-            pm  = (lambda pos=None: self.get_piece_at_position(pos)),
+            tt  = self.test
         )
+
+    def execute(self, cmd):
+        try:
+            self.command_queue.put(cmd, block=False)
+        except Exception as e:
+            print(e)
+
+    def set_board_view(self, board_view):
+        self.board_view = board_view
 
     def run(self):
         while not self.stop_flag:
@@ -49,7 +60,7 @@ class GameEngine(Thread):
                 try:
                     self.do_move(cmd)
                 except ValueError:
-                    print('Command not recognized.' )
+                    print('Command not recognized.', cmd)
             self.command_queue.task_done()
             self.halt_flag = False
 
@@ -58,36 +69,41 @@ class GameEngine(Thread):
         self.stop_flag = True
         self.command_queue.put(None)
 
-    def execute(self, cmd):
-        try:
-            self.command_queue.put(cmd, block=False)
-        except Exception as e:
-            print(e)
+    def refresh_view(self):
+        if self.board_view:
+            self.board_view.refresh(self.get_svg_board())
+            sleep(0.1)
 
-    def auto_fast_forward(self):
-        print('Playing fast forward mode.')
-        self.auto_play = True
-        move = toggle(self.play_best_move, self.play_random_move)
-        while not (self.board.is_game_over() or self.halt_flag):
-            next(move)()
-            sleep(0.5)
-        self.auto_play = False
+    def check_status(self):
+        if self.board.is_checkmate():
+            print('Checkmate player {}!'.format('White' if self.board.turn else 'Black'))
+        elif self.board.is_game_over():
+            print('Game over!', self.board.result())
 
-    def auto_play_stockfish(self):
-        print('Playing stockfish vs stockfish.')
-        self.auto_play = True
-        while (self.board.is_game_over() or self.halt_flag):
-            self.play_best_move
-            sleep(1)
-        self.auto_play = False
+    def get_svg_board(self):
+        return boardToSvg(self.board)
 
-    def auto_play_random(self):
-        print('Playing random moves.')
-        self.auto_play = True
-        while not (self.board.is_game_over() or self.halt_flag):
-            self.play_random_move
-            sleep(1)
-        self.auto_play = False
+    def do_move(self, uci):
+        move = Move.from_uci(uci)
+        if move in self.board.legal_moves:
+            self.board.push(move)
+            self.refresh_view()
+            self.check_status()
+        else:
+            print('Illegal move!')
+
+    def reverse_move(self):
+        print('Popping {} move off stack'.format(self.board.pop()))
+        self.refresh_view()
+
+    def reset_board(self):
+        print('Resetting board.')
+        self.board.reset()
+        self.refresh_view()
+
+    def get_best_move(self):
+        self.stockfish.set_fen_position(self.board.fen())
+        return self.stockfish.get_best_move()
 
     def play_best_move(self):
         move = self.get_best_move()
@@ -109,45 +125,40 @@ class GameEngine(Thread):
         # Can stockfish do it?
         pass
 
-    def get_best_move(self):
-        self.stockfish.set_fen_position(self.board.fen())
-        return self.stockfish.get_best_move()
+    def auto_fast_forward(self):
+        print('Playing fast forward mode.')
+        self.auto_play = True
+        move = toggle(self.play_best_move, self.play_random_move)
+        while not (self.board.is_game_over() or self.halt_flag):
+            next(move)()
+            sleep(0.5)
+        self.auto_play = False
 
-    def reset_board(self):
-        print('Resetting board.')
-        self.board.reset()
-        self.refresh_view()
+    def auto_play_stockfish(self):
+        print('Playing stockfish vs stockfish.')
+        self.auto_play = True
+        while not (self.board.is_game_over() or self.halt_flag):
+            self.play_best_move
+            sleep(1)
+        self.auto_play = False
 
-    def do_move(self, uci):
-        move = Move.from_uci(uci)
-        if move in self.board.legal_moves:
-            self.board.push(move)
-            self.refresh_view()
-            self.check_status()
-        else:
-            print('Illegal move!')
+    def auto_play_random(self):
+        print('Playing random moves.')
+        self.auto_play = True
+        while not (self.board.is_game_over() or self.halt_flag):
+            self.play_random_move
+            sleep(1)
+        self.auto_play = False
 
-    def reverse_move(self):
-        print('Popping {} move off stack'.format(self.board.pop()))
-        self.refresh_view()
-
-    def refresh_view(self):
-        if self.board_view:
-            self.board_view.refresh(self.get_svg_board())
-            sleep(0.1)
-
-    def check_status(self):
-        if self.board.is_checkmate():
-            print('Checkmate player {}!'.format('White' if self.board.turn else 'Black'))
-        elif self.board.is_game_over():
-            print('Game over!', self.board.result())
-
-    def set_board_view(self, board_view):
-        self.board_view = board_view
-
-    def get_svg_board(self):
-        return boardToSvg(self.board)
-
-
-
+    def test(self):
+        b = []
+        for j in range(8):
+            l = [] 
+            for i in range(8):
+                p = self.board.piece_at(i + 8*j)
+                if not p:
+                    p = '.'
+                l.append(str(p))
+            b.append(l)
+        print(np.array(b))
         
