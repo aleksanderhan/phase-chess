@@ -16,10 +16,6 @@ def toggle(a, b, yield_a=True):
         (yield a) if yield_a else (yield b)
         yield_a = not yield_a
 
-
-def parse_fen_to_nparray(fen):
-    np.array(np.mat('1 2; 3 4'), subok=True)
-
 def create_board_np_array(board):
     b = []
     for j in range(8):
@@ -32,10 +28,10 @@ def create_board_np_array(board):
     print(np.array(b))
 
 def uniquename(wish):
-    parts = wish.split('.')
+    parts = os.path.splitext(wish)
     i = 0
     while True:
-        name = '.'.join(parts[:-1]) + (str(i) if i > 0 else '') + '.' + parts[-1]
+        name = parts[0] + (str(i) if i > 0 else '') + parts[1]
         if os.path.isfile(name):
             i += 1
         else:

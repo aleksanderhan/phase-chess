@@ -6,6 +6,7 @@ class StockfishAPI(Stockfish):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.info = None
 
     def __put(self, command):
         self.stockfish.stdin.write(f"{command}\n")
@@ -20,7 +21,7 @@ class StockfishAPI(Stockfish):
         while True:
             text = self.stockfish.stdout.readline().strip()
             splitted_text = text.split(" ")
-            print(splitted_text)
+            # print(splitted_text)
             if splitted_text[0] == "bestmove":
                 if splitted_text[1] == "(none)":
                     return None

@@ -1,6 +1,7 @@
 import os
 import random
 import queue
+import logging
 
 from threading import Thread
 from time import sleep, clock
@@ -12,6 +13,10 @@ from chess.svg import board as boardToSvg
 
 from stockfish_api import StockfishAPI
 from helper.functions import toggle
+
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class GameEngine(Thread):
@@ -26,7 +31,7 @@ class GameEngine(Thread):
 
         self.board = Board()
         self.board_view = None
-        self.stockfish = StockfishAPI(path='{}/stockfish-10-linux/stockfish_10_x64_modern'.format(os.getcwd()), depth=5)
+        self.stockfish = StockfishAPI(path=f'{os.getcwd()}/stockfish-10-linux/stockfish_10_x64_modern', depth=5)
 
         # Command map
         self.commands = dict(
@@ -38,13 +43,15 @@ class GameEngine(Thread):
             re  = self.reset_board,
             rev = self.reverse_move,
             tt  = self.test,
+            ai  = self.play_against_ai,
+            si  = lambda: logger.info(self.stockfish.info)
         )
 
     def execute(self, cmd):
         try:
             self.command_queue.put(cmd, block=False)
         except Exception as e:
-            print(e)
+            logger.exception(e)
 
     def set_board_view(self, board_view):
         self.board_view = board_view
@@ -53,16 +60,22 @@ class GameEngine(Thread):
         while not self.stop_flag:
             cmd = self.command_queue.get(block=True)
             if cmd is None: break
+            cmd, *args = cmd.split(' ')
 
             try:
-                self.commands[cmd]() # Command call
+                self.commands[cmd](*args) # Command call
             except KeyError:
                 try:
                     self.do_move(cmd)
                 except ValueError:
-                    print('Command not recognized:', cmd)
-            self.command_queue.task_done()
-            self.halt_flag = False
+                    logger.warning('Command not recognized:', cmd)
+            except TypeError as te:
+                logger.warning(te)
+            except Exception as e:
+                logger.exception(e)
+            finally:
+                self.command_queue.task_done()
+                self.halt_flag = False
 
     def stop(self):
         self.halt_flag = True
@@ -76,9 +89,9 @@ class GameEngine(Thread):
 
     def check_status(self):
         if self.board.is_checkmate():
-            print('Checkmate player {}!'.format('White' if self.board.turn else 'Black'))
+            logger.info('Checkmate player {}!'.format('White' if self.board.turn else 'Black'))
         elif self.board.is_game_over():
-            print('Game over!', self.board.result())
+            logger.info('Game over!', self.board.result())
 
     def get_svg_board(self):
         return boardToSvg(self.board)
@@ -101,14 +114,14 @@ class GameEngine(Thread):
             if refresh: self._refresh_view()
             self.check_status()
         else:
-            print('Illegal move!')
+            logger.info('Illegal move!')
 
     def reverse_move(self):
-        print('Popping {} move off stack'.format(self.board.pop()))
+        logger.info(f'Popping {self.board.pop()} move off stack.')
         self._refresh_view()
 
     def reset_board(self, refresh=True):
-        print('Resetting board.')
+        logger.info('Resetting board.')
         self.board.reset()
         if refresh: self._refresh_view()
 
@@ -131,7 +144,7 @@ class GameEngine(Thread):
         pass
 
     def auto_fast_forward(self, refresh=True):
-        print('Playing fast forward mode.')
+        logger.info('Playing fast forward mode.')
         self.auto_play = True
         move = toggle(
             lambda r: self.play_stockfish_move(r), 
@@ -143,12 +156,11 @@ class GameEngine(Thread):
             next(move)(refresh)
             i += 1
         
-        self._refresh_view()
         self.auto_play = False
         return i
 
     def auto_play_stockfish(self, refresh=True):
-        print('Playing stockfish vs stockfish.')
+        logger.info('Playing stockfish vs stockfish.')
         self.auto_play = True
         i = 0
         
@@ -156,12 +168,11 @@ class GameEngine(Thread):
             self.play_stockfish_move(refresh)
             i += 1
         
-        self._refresh_view()
         self.auto_play = False
         return i
 
     def auto_play_random(self, refresh=True):
-        print('Playing random moves.')
+        logger.info('Playing random moves.')
         self.auto_play = True
         i = 0
         
@@ -169,13 +180,12 @@ class GameEngine(Thread):
             self.play_random_move(refresh)
             i += 1
 
-        self._refresh_view()
         self.auto_play = False
         return i
 
     # One move look-a-head, best-move checkmate check
     def auto_play_random_lookahead(self, refresh=True):
-        print('Playing random with look-a-head.')
+        logger.info('Playing random with look-a-head.')
         self.auto_play = True
         i = 0
 
@@ -188,37 +198,37 @@ class GameEngine(Thread):
             self.play_random_move(refresh)
             i += 1
 
-        self._refresh_view()
         self.auto_play = False
         return i
 
-
     def test(self):
+        logger.info('Running benchmarks.')
+        durations = [[] for _ in range(4)]
+        iterations = [[] for _ in range(4)]
+        N = 100
+
         self.reset_board(True)
-        t0 = clock()
-        i = self.auto_play_stockfish(False)
-        dt = clock() - t0
-        print('elapsed time: ', round(dt*10, 2), 'iterations:', i)
-        print()    
-        
-        self.reset_board(False)
-        t0 = clock()
-        i = self.auto_play_random(False)
-        dt = clock() - t0
-        print('elapsed time: ', round(dt*10, 2), 'iterations:', i)
-        print()    
+        logger.setLevel(logging.WARNING)
+        functions = [self.auto_play_stockfish, self.auto_play_random, self.auto_fast_forward, self.auto_play_random_lookahead]
+        for f in range(len(functions)):
+            for _ in range(N):
+                self.reset_board(False)
+                t0 = clock()
+                i = functions[f](False)
+                dt = clock() - t0
+                durations[f].append(dt)
+                iterations[f].append(i)
 
         self.reset_board(False)
-        t0 = clock()
-        i = self.auto_fast_forward(False)
-        dt = clock() - t0
-        print('elapsed time: ', round(dt*10, 2), 'iterations:', i)
-        print()    
-        
-        self.reset_board(False)
-        t0 = clock()
-        i = self.auto_play_random_lookahead(False)
-        dt = clock() - t0
-        print('elapsed time: ', round(dt*10, 2), 'iterations:', i)
-        print()    
+        logger.setLevel(logging.INFO)
+        try:
+            logger.info(''.join(['stockfish        - avg elapsed time: ', str(round((sum(durations[0])*10)/N, 2)), ' avg iterations: ', str(sum(iterations[0])/N)]))
+            logger.info(''.join(['random           - avg elapsed time: ', str(round((sum(durations[1])*10)/N, 2)), ' avg iterations: ', str(sum(iterations[1])/N)]))
+            logger.info(''.join(['forward          - avg elapsed time: ', str(round((sum(durations[2])*10)/N, 2)), ' avg iterations: ', str(sum(iterations[2])/N)]))
+            logger.info(''.join(['random_lookahead - avg elapsed time: ', str(round((sum(durations[3])*10)/N, 2)), ' avg iterations: ', str(sum(iterations[3])/N)]))
+        except:
+            pass
+
+    def play_against_ai(self, a, b=1):
+        print(a, b)
 
