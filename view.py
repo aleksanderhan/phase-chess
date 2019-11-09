@@ -29,13 +29,11 @@ class BoardView(QWidget):
             if release_pos:
                 piece = self.get_piece_at_pos(self.press_pos)
                 move = self.press_pos + release_pos
-                
-                if self.parent().game.board.turn:
-                    if piece == 'P' and release_pos[1] == '8' and self.press_pos[1] == '7':
-                        move += 'q' # TODO: player input 
-                else: 
-                    if piece == 'p' and release_pos[1] == '1' and self.press_pos[1] == '2':
-                        move += 'q'
+
+                if (self.parent().game.board.turn and
+                    (piece == 'P' and release_pos[1] == '8' and self.press_pos[1] == '7') or
+                    (piece == 'p' and release_pos[1] == '1' and self.press_pos[1] == '2')):
+                    move += 'q' # TODO: player input 
 
                 if self.press_pos == release_pos:
                     move = '0000' # uci null move

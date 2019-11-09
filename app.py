@@ -6,6 +6,8 @@ from PyQt5.QtWidgets import QApplication, QWidget, QLineEdit, QGridLayout
 from view import BoardView
 from game import GameEngine
 
+from helper.functions import uniquename
+
 
 class Main(QWidget):
 
@@ -37,11 +39,14 @@ class Main(QWidget):
         elif cmd == 'lm': # legal moves
             print([str(move) for move in self.game.board.legal_moves])
         elif cmd == 'sb': # save board
-            with open('board.svg', 'w') as file:
+            filename = next(uniquename('board.svg'))
+            with open(filename, 'w') as file:
                 file.write(str(self.game.get_svg_board()))
-            print('Board written to svg file.')
+            print('Board written to:', filename)
         elif cmd == 'cc':
             print(self.game.board.result())
+        elif cmd == 'ee':
+            self.game.edit_mode = not self.game.edit_mode
         else:
             if not self.game.auto_play:
                 self.execute_game_command(cmd)
