@@ -36,3 +36,10 @@ def uniquename(wish):
             i += 1
         else:
             yield name
+
+
+def parse_int(i=None):
+    try:
+        return int(i)
+    except:
+        return None

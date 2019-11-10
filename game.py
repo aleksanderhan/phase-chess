@@ -12,7 +12,7 @@ from chess import Board, Move
 from chess.svg import board as boardToSvg
 
 from stockfish_api import StockfishAPI
-from helper.functions import toggle
+from helper.functions import toggle, parse_int
 
 
 logging.basicConfig(level=logging.INFO)
@@ -69,8 +69,8 @@ class GameEngine(Thread):
                     self._do_move(cmd)
                 except ValueError:
                     logger.warning('Command not recognized:' + cmd)
-            except TypeError as te:
-                logger.warning('Too many arguments. ' + str(te))
+            except (TypeError, ValueError) as tve:
+                logger.warning(f'Command arguments error. {tve}')
             except Exception as e:
                 logger.exception(e)
             finally:
@@ -82,9 +82,17 @@ class GameEngine(Thread):
         self.stop_flag = True
         self.command_queue.put(None)
 
+    def halt(self):
+        logger.debug('Halting auto-play.')
+        self.halt_flag = True
+
+    def toggle_edit_mode(self):
+        logger.info(f'{"Disabling edit mode." if self.edit_mode else "Enabling edit mode."}')
+        self.edit_mode = not self.edit_mode
+
     def check_status(self):
         if self.board.is_checkmate():
-            logger.info('Checkmate player {}!'.format('White' if self.board.turn else 'Black'))
+            logger.info(f'Checkmate player {"White" if self.board.turn else "Black"}!')
         elif self.board.is_game_over():
             logger.info(f'Game over! {self.board.result()}')
 
@@ -128,8 +136,8 @@ class GameEngine(Thread):
         self.board.reset()
         if refresh: self.__refresh_view()
 
-    def _play_stockfish_move(self, refresh=True):
-        move = self.stockfish.get_best_move(self.board.fen())
+    def _play_stockfish_move(self, refresh=True, depth=None):
+        move = self.stockfish.get_best_move(self.board.fen(), parse_int(depth))
         if move:
             self._do_move(move, refresh)
         else:
@@ -149,13 +157,13 @@ class GameEngine(Thread):
         if self.board.is_game_over(): return
 
         self.board.pop()
-        self.play_random_move(refresh)
+        self._play_random_move(refresh)
 
     def _play_worst_move(self, refresh=True):
         # Can stockfish do it?
         pass
 
-    def _auto_play(self, function, **kwargs):
+    def __auto_play(self, function, **kwargs):
         self.auto_play = True
         i = 0
         
@@ -172,29 +180,29 @@ class GameEngine(Thread):
             (lambda r: self._play_stockfish_move(r)), 
             (lambda r: self._play_random_move(r))
         )
-        return self._auto_play((lambda t, r: next(t)(r)), t=move, r=refresh)
+        return self.__auto_play((lambda t, r: next(t)(r)), t=move, r=refresh)
 
     def _auto_play_stockfish(self, refresh=True):
         logger.info('Playing stockfish vs stockfish.')
-        return self.auto_play(self._play_stockfish_move, refresh=refresh)
+        return self.__auto_play(self._play_stockfish_move, refresh=refresh)
         
     def _auto_play_random(self, refresh=True):
         logger.info('Playing random moves.')
-        return self.auto_play(self._play_random_move, refresh=refresh)
+        return self.__auto_play(self._play_random_move, refresh=refresh)
 
     def _auto_play_random_lookahead(self, refresh=True):
         logger.info('Playing random with look-a-head.')
-        return self.auto_play(self._play_random_lookahead, refresh=refresh)
+        return self.__auto_play(self._play_random_lookahead, refresh=refresh)
 
-    def _test(self):
-        logger.info('Running benchmarks.')
-        durations = [[] for _ in range(4)]
-        iterations = [[] for _ in range(4)]
-        N = 100
+    def _test(self, N=100):
+        N = parse_int(N)
+        logger.info(f'Running benchmarks. N={N}')
+        functions = [self._auto_play_stockfish, self._auto_play_random, self._auto_play_fast_forward, self._auto_play_random_lookahead]
+        durations = [[] for _ in range(len(functions))]
+        iterations = [[] for _ in range(len(functions))]
 
         self._reset_board(True)
         logger.setLevel(logging.WARNING)
-        functions = [self._auto_play_stockfish, self._auto_play_random, self._auto_play_fast_forward, self._auto_play_random_lookahead]
         for f in range(len(functions)):
             for _ in range(N):
                 self._reset_board(False)
@@ -207,16 +215,16 @@ class GameEngine(Thread):
         self._reset_board(False)
         logger.setLevel(logging.INFO)
         try:
-            logger.info(''.join(['stockfish        - avg elapsed time: ', str(round((sum(durations[0])*10)/N, 2)), ' avg iterations: ', str(sum(iterations[0])/N)]))
-            logger.info(''.join(['random           - avg elapsed time: ', str(round((sum(durations[1])*10)/N, 2)), ' avg iterations: ', str(sum(iterations[1])/N)]))
-            logger.info(''.join(['forward          - avg elapsed time: ', str(round((sum(durations[2])*10)/N, 2)), ' avg iterations: ', str(sum(iterations[2])/N)]))
-            logger.info(''.join(['random_lookahead - avg elapsed time: ', str(round((sum(durations[3])*10)/N, 2)), ' avg iterations: ', str(sum(iterations[3])/N)]))
+            logger.info(f'stockfish        - avg elapsed time: {round((sum(durations[0])*10)/N, 2)} avg iterations: {sum(iterations[0])/N}')
+            logger.info(f'random           - avg elapsed time: {round((sum(durations[1])*10)/N, 2)} avg iterations: {sum(iterations[1])/N}')
+            logger.info(f'fast forward     - avg elapsed time: {round((sum(durations[2])*10)/N, 2)} avg iterations: {sum(iterations[2])/N}')
+            logger.info(f'random lookahead - avg elapsed time: {round((sum(durations[3])*10)/N, 2)} avg iterations: {sum(iterations[3])/N}')    
         except:
             pass
 
-    def _play_against_ai(self, ai='sf', d=1):
+    def _play_against_ai(self, ai='sf', depth=None):
         if ai == 'sf':
-            engine = self.stockfish.get_best_move(self.board.fen(), d)
+            move = self.stockfish.get_best_move(self.board.fen(), depth)
         else:
             raise Exception(f'ai argument {ai} not known.')
 

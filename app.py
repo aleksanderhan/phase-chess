@@ -16,8 +16,6 @@ logger = logging.getLogger(__name__)
 
 class Main(QWidget):
 
-    EXIT = {'exit', 'quit', 'qq'}
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.game = GameEngine()
@@ -32,33 +30,37 @@ class Main(QWidget):
         # Signaling
         self.command.returnPressed.connect(self.execute_command)
 
+        self.commands = dict(
+            # Exit application.
+            qq = self.quit,
+            # Save current board state to svg.
+            sb = self.save_board,
+            # Halt auto play.
+            q  = self.game.halt,
+            # Toggle edit mode.
+            ee = self.game.toggle_edit_mode,
+            # Check result.
+            cc = (lambda: logger.info(self.game.board.result())),
+            # Print legal moves.
+            lm = (lambda: logger.info(', '.join([str(move) for move in self.game.board.legal_moves]))),
+            # Print available commands.
+            hh = (lambda: logger.info('Commands: ' + ', '.join(list(self.commands.keys()) + list(self.game.commands.keys()))))
+        )
+
     def execute_command(self):
-        cmd = self.command.text()
+        cmd, *args = self.command.text().split(' ')
         self.command.clear()
-        if cmd.lower() in self.EXIT: # exit
-            self.game.stop()
-            sys.exit(0)
-        elif cmd == 'q':
-            logger.info('Halt automatic play.')
-            self.game.halt_flag = True
-        elif cmd == 'lm': # legal moves
-            logger.info(', '.join([str(move) for move in self.game.board.legal_moves]))
-        elif cmd == 'sb': # save board
-            filename = next(uniquename('board.svg'))
-            with open(filename, 'w') as file:
-                file.write(str(self.game.get_svg_board()))
-            logger.info('Board written to: ' +filename)
-        elif cmd == 'cc':
-            logger.info(self.game.board.result())
-        elif cmd == 'ee':
-            self.game.edit_mode = not self.game.edit_mode
-        elif cmd == 'hh':
-            logger.info('Commands: ' + ', '.join(self.game.commands.keys()))
-        else:
-            if not self.game.auto_play:
-                self.execute_game_command(cmd)
-            else:
+
+        try:
+            self.commands[cmd](*args)
+        except KeyError:
+            if self.game.auto_play:
                 logger.info('Auto-play in progress. Send q to halt.')
+            else:
+                self.execute_game_command(cmd)
+        except Exception as e:
+            logger.exception(e)
+            logger.error('cmd: {cmd}, args: {args}')
     
     def execute_game_command(self, cmd):
         self.game.execute(cmd)
@@ -66,6 +68,16 @@ class Main(QWidget):
     def closeEvent(self, event):
         super().closeEvent(event)
         self.game.stop()
+
+    def quit(self):
+        self.game.stop()
+        sys.exit(0)
+
+    def save_board(self, filename='board.svg'):
+        filename = next(uniquename(filename))
+        with open(filename, 'w') as file:
+            file.write(str(self.game.get_svg_board()))
+        logger.info('Board written to: ' + filename)
 
 
 if __name__ == '__main__':
