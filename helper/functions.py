@@ -36,5 +36,3 @@ def uniquename(wish):
             i += 1
         else:
             yield name
-
-
