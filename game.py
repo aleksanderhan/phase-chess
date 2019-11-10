@@ -44,7 +44,7 @@ class GameEngine(Thread):
             rev = self._reverse_move,
             tt  = self._test,
             ai  = self._play_against_ai,
-            si  = lambda: logger.info(self.stockfish.info)
+            si  = (lambda: logger.info(self.stockfish.info))
         )
 
     def execute(self, cmd):
@@ -155,12 +155,12 @@ class GameEngine(Thread):
         # Can stockfish do it?
         pass
 
-    def _auto_play(self, function, refresh=True):
+    def _auto_play(self, function, **kwargs):
         self.auto_play = True
         i = 0
         
         while not (self.board.is_game_over() or self.halt_flag):
-            function(refresh)
+            function(**kwargs)
             i += 1
         
         self.auto_play = False
@@ -168,31 +168,23 @@ class GameEngine(Thread):
 
     def _auto_play_fast_forward(self, refresh=True):
         logger.info('Playing fast forward mode.')
-        self.auto_play = True
         move = toggle(
-            lambda r: self.play_stockfish_move(r), 
-            lambda r: self.play_random_move(r)
+            (lambda r: self._play_stockfish_move(r)), 
+            (lambda r: self._play_random_move(r))
         )
-        i = 0
-        
-        while not (self.board.is_game_over() or self.halt_flag):
-            next(move)(refresh)
-            i += 1
-        
-        self.auto_play = False
-        return i
+        return self._auto_play((lambda t, r: next(t)(r)), t=move, r=refresh)
 
     def _auto_play_stockfish(self, refresh=True):
         logger.info('Playing stockfish vs stockfish.')
-        return self.auto_play(self.play_stockfish_move(refresh))
+        return self.auto_play(self._play_stockfish_move, refresh=refresh)
         
     def _auto_play_random(self, refresh=True):
         logger.info('Playing random moves.')
-        return self.auto_play(self.play_random_move(refresh))
+        return self.auto_play(self._play_random_move, refresh=refresh)
 
     def _auto_play_random_lookahead(self, refresh=True):
         logger.info('Playing random with look-a-head.')
-        return self.auto_play(self.play_random_lookahead(refresh))
+        return self.auto_play(self._play_random_lookahead, refresh=refresh)
 
     def _test(self):
         logger.info('Running benchmarks.')
@@ -200,19 +192,19 @@ class GameEngine(Thread):
         iterations = [[] for _ in range(4)]
         N = 100
 
-        self.reset_board(True)
+        self._reset_board(True)
         logger.setLevel(logging.WARNING)
-        functions = [self.auto_play_stockfish, self.auto_play_random, self.auto_play_fast_forward, self.auto_play_random_lookahead]
+        functions = [self._auto_play_stockfish, self._auto_play_random, self._auto_play_fast_forward, self._auto_play_random_lookahead]
         for f in range(len(functions)):
             for _ in range(N):
-                self.reset_board(False)
+                self._reset_board(False)
                 t0 = clock()
                 i = functions[f](False)
                 dt = clock() - t0
                 durations[f].append(dt)
                 iterations[f].append(i)
 
-        self.reset_board(False)
+        self._reset_board(False)
         logger.setLevel(logging.INFO)
         try:
             logger.info(''.join(['stockfish        - avg elapsed time: ', str(round((sum(durations[0])*10)/N, 2)), ' avg iterations: ', str(sum(iterations[0])/N)]))
