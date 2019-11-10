@@ -1,10 +1,17 @@
 import sys
+import logging
 import numpy as np
 
 from PyQt5.QtWidgets import QApplication, QWidget, QLineEdit, QGridLayout
 
 from view import BoardView
 from game import GameEngine
+
+from helper.functions import uniquename
+
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class Main(QWidget):
@@ -32,21 +39,26 @@ class Main(QWidget):
             self.game.stop()
             sys.exit(0)
         elif cmd == 'q':
-            print('Halt automatic play.')
+            logger.info('Halt automatic play.')
             self.game.halt_flag = True
         elif cmd == 'lm': # legal moves
-            print([str(move) for move in self.game.board.legal_moves])
+            logger.info(', '.join([str(move) for move in self.game.board.legal_moves]))
         elif cmd == 'sb': # save board
-            with open('board.svg', 'w') as file:
+            filename = next(uniquename('board.svg'))
+            with open(filename, 'w') as file:
                 file.write(str(self.game.get_svg_board()))
-            print('Board written to svg file.')
+            logger.info('Board written to: ' +filename)
         elif cmd == 'cc':
-            print(self.game.board.result())
+            logger.info(self.game.board.result())
+        elif cmd == 'ee':
+            self.game.edit_mode = not self.game.edit_mode
+        elif cmd == 'hh':
+            logger.info('Commands: ' + ', '.join(self.game.commands.keys()))
         else:
             if not self.game.auto_play:
                 self.execute_game_command(cmd)
             else:
-                print('Auto-play in progress. Send q to halt.')
+                logger.info('Auto-play in progress. Send q to halt.')
     
     def execute_game_command(self, cmd):
         self.game.execute(cmd)
