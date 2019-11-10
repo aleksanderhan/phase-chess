@@ -35,15 +35,15 @@ class GameEngine(Thread):
 
         # Command map
         self.commands = dict(
-            sf  = self.play_stockfish_move,
-            rr  = self.play_random_move,
-            ff  = self.auto_fast_forward,
-            psf = self.auto_play_stockfish,
-            pr  = self.auto_play_random,
-            re  = self.reset_board,
-            rev = self.reverse_move,
-            tt  = self.test,
-            ai  = self.play_against_ai,
+            sf  = self._play_stockfish_move,
+            rr  = self._play_random_move,
+            ff  = self._auto_play_fast_forward,
+            psf = self._auto_play_stockfish,
+            pr  = self._auto_play_random,
+            re  = self._reset_board,
+            rev = self._reverse_move,
+            tt  = self._test,
+            ai  = self._play_against_ai,
             si  = lambda: logger.info(self.stockfish.info)
         )
 
@@ -66,11 +66,11 @@ class GameEngine(Thread):
                 self.commands[cmd](*args) # Command call
             except KeyError:
                 try:
-                    self.do_move(cmd)
+                    self._do_move(cmd)
                 except ValueError:
-                    logger.warning('Command not recognized:', cmd)
+                    logger.warning('Command not recognized:' + cmd)
             except TypeError as te:
-                logger.warning(te)
+                logger.warning('Too many arguments. ' + str(te))
             except Exception as e:
                 logger.exception(e)
             finally:
@@ -82,27 +82,30 @@ class GameEngine(Thread):
         self.stop_flag = True
         self.command_queue.put(None)
 
-    def _refresh_view(self):
-        if self.board_view:
-            self.board_view.refresh(self.get_svg_board())
-            sleep(0.1)
-
     def check_status(self):
         if self.board.is_checkmate():
             logger.info('Checkmate player {}!'.format('White' if self.board.turn else 'Black'))
         elif self.board.is_game_over():
-            logger.info('Game over!', self.board.result())
+            logger.info(f'Game over! {self.board.result()}')
 
     def get_svg_board(self):
         return boardToSvg(self.board)
 
-    def do_move(self, uci, refresh=True):
+    def get_piece_at_pos(self, uci):
+        x = 'abcdefgh'.index(uci[0])
+        y = int(uci[1]) - 1
+        return str(self.board.piece_at(x + y*8))
+
+    def __refresh_view(self):
+        if self.board_view:
+            self.board_view.refresh(self.get_svg_board())
+            sleep(0.1)
+
+    def _do_move(self, uci, refresh=True):
         move = Move.from_uci(uci)
         if move in self.board.legal_moves or self.edit_mode:
             if self.edit_mode: 
-                x0 = 'abcdefgh'.index(uci[0])
-                y0 = int(uci[1]) - 1
-                piece = str(self.board.piece_at(x0 + y0*8))
+                piece = self.get_piece_at_pos(uci)
                 if ((piece.isupper() and not self.board.turn) or
                     (piece.islower() and self.board.turn)):
                     self.board.turn = not self.board.turn
@@ -111,39 +114,59 @@ class GameEngine(Thread):
             else:
                 self.board.push(move)
 
-            if refresh: self._refresh_view()
+            if refresh: self.__refresh_view()
             self.check_status()
         else:
             logger.info('Illegal move!')
 
-    def reverse_move(self):
+    def _reverse_move(self):
         logger.info(f'Popping {self.board.pop()} move off stack.')
-        self._refresh_view()
+        self.__refresh_view()
 
-    def reset_board(self, refresh=True):
+    def _reset_board(self, refresh=True):
         logger.info('Resetting board.')
         self.board.reset()
-        if refresh: self._refresh_view()
+        if refresh: self.__refresh_view()
 
-    def play_stockfish_move(self, refresh=True):
+    def _play_stockfish_move(self, refresh=True):
         move = self.stockfish.get_best_move(self.board.fen())
         if move:
-            self.do_move(move, refresh)
+            self._do_move(move, refresh)
         else:
             self.check_status()
 
-    def play_random_move(self, refresh=True):
+    def _play_random_move(self, refresh=True):
         try:
             move = str(random.choice(list(self.board.legal_moves)))
-            self.do_move(move, refresh)
+            self._do_move(move, refresh)
         except IndexError as ie:
             self.check_status()
 
-    def play_worst_move(self, refresh=True):
+    # One move look-a-head, best-move checkmate check
+    def _play_random_lookahead(self, refresh=True):
+        move = self.stockfish.get_best_move(self.board.fen(), depth=1)
+        self._do_move(move, False)
+        if self.board.is_game_over(): return
+
+        self.board.pop()
+        self.play_random_move(refresh)
+
+    def _play_worst_move(self, refresh=True):
         # Can stockfish do it?
         pass
 
-    def auto_fast_forward(self, refresh=True):
+    def _auto_play(self, function, refresh=True):
+        self.auto_play = True
+        i = 0
+        
+        while not (self.board.is_game_over() or self.halt_flag):
+            function(refresh)
+            i += 1
+        
+        self.auto_play = False
+        return i
+
+    def _auto_play_fast_forward(self, refresh=True):
         logger.info('Playing fast forward mode.')
         self.auto_play = True
         move = toggle(
@@ -159,49 +182,19 @@ class GameEngine(Thread):
         self.auto_play = False
         return i
 
-    def auto_play_stockfish(self, refresh=True):
+    def _auto_play_stockfish(self, refresh=True):
         logger.info('Playing stockfish vs stockfish.')
-        self.auto_play = True
-        i = 0
+        return self.auto_play(self.play_stockfish_move(refresh))
         
-        while not (self.board.is_game_over() or self.halt_flag):
-            self.play_stockfish_move(refresh)
-            i += 1
-        
-        self.auto_play = False
-        return i
-
-    def auto_play_random(self, refresh=True):
+    def _auto_play_random(self, refresh=True):
         logger.info('Playing random moves.')
-        self.auto_play = True
-        i = 0
-        
-        while not (self.board.is_game_over() or self.halt_flag):
-            self.play_random_move(refresh)
-            i += 1
+        return self.auto_play(self.play_random_move(refresh))
 
-        self.auto_play = False
-        return i
-
-    # One move look-a-head, best-move checkmate check
-    def auto_play_random_lookahead(self, refresh=True):
+    def _auto_play_random_lookahead(self, refresh=True):
         logger.info('Playing random with look-a-head.')
-        self.auto_play = True
-        i = 0
+        return self.auto_play(self.play_random_lookahead(refresh))
 
-        while not (self.board.is_game_over() or self.halt_flag):
-            move = self.stockfish.get_best_move(self.board.fen(), depth=1)
-            self.do_move(move, False)
-            if self.board.is_game_over() or self.halt_flag: continue
-
-            self.board.pop()
-            self.play_random_move(refresh)
-            i += 1
-
-        self.auto_play = False
-        return i
-
-    def test(self):
+    def _test(self):
         logger.info('Running benchmarks.')
         durations = [[] for _ in range(4)]
         iterations = [[] for _ in range(4)]
@@ -209,7 +202,7 @@ class GameEngine(Thread):
 
         self.reset_board(True)
         logger.setLevel(logging.WARNING)
-        functions = [self.auto_play_stockfish, self.auto_play_random, self.auto_fast_forward, self.auto_play_random_lookahead]
+        functions = [self.auto_play_stockfish, self.auto_play_random, self.auto_play_fast_forward, self.auto_play_random_lookahead]
         for f in range(len(functions)):
             for _ in range(N):
                 self.reset_board(False)
@@ -229,6 +222,11 @@ class GameEngine(Thread):
         except:
             pass
 
-    def play_against_ai(self, a, b=1):
-        print(a, b)
+    def _play_against_ai(self, ai='sf', d=1):
+        if ai == 'sf':
+            engine = self.stockfish.get_best_move(self.board.fen(), d)
+        else:
+            raise Exception(f'ai argument {ai} not known.')
+
+
 

@@ -27,9 +27,10 @@ class BoardView(QWidget):
         if self.press_pos:
             release_pos = self.calculate_board_position(event)
             if release_pos:
-                piece = self.get_piece_at_pos(self.press_pos)
+                piece = self.parent().game.get_piece_at_pos(self.press_pos)
                 move = self.press_pos + release_pos
 
+                # Promotion
                 if (self.parent().game.board.turn and
                     (piece == 'P' and release_pos[1] == '8' and self.press_pos[1] == '7') or
                     (piece == 'p' and release_pos[1] == '1' and self.press_pos[1] == '2')):
@@ -59,11 +60,6 @@ class BoardView(QWidget):
         else:
             return 'abcdefgh'[x_pos - 1] + str(y_pos)
 
-    def get_piece_at_pos(self, uci):
-        x = 'abcdefgh'.index(uci[0])
-        y = int(uci[1]) - 1
-        piece = self.parent().game.board.piece_at(x + y*8)
-        return str(piece)
 
 class EvenLayout(QGridLayout):
 
