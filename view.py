@@ -30,13 +30,12 @@ class BoardView(QWidget):
                 piece = self.parent().game.get_piece_at_pos(self.press_pos)
                 move = self.press_pos + release_pos
 
-                # Promotion
-                if (self.parent().game.board.turn and
-                    (piece == 'P' and release_pos[1] == '8' and self.press_pos[1] == '7') or
-                    (piece == 'p' and release_pos[1] == '1' and self.press_pos[1] == '2')):
-                    move += 'q' # TODO: player input 
-
-                if self.press_pos == release_pos:
+                if ((piece == 'P' and release_pos[1] == '8' and self.press_pos[1] == '7' and self.parent().game.board.turn) or
+                    (piece == 'p' and release_pos[1] == '1' and self.press_pos[1] == '2' and not self.parent().game.board.turn)):
+                    # Promotion
+                    # TODO: player input - await, asyncio
+                    move += 'q' 
+                elif self.press_pos == release_pos:
                     move = '0000' # uci null move
                 self.parent().execute_game_command(move)
 
